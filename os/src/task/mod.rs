@@ -19,9 +19,12 @@ use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
 use switch::__switch;
+use crate::timer::get_time_ms;
+use crate::config::MAX_SYSCALL_NUM;
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
+use crate::syscall::process::TaskInfo;
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -46,7 +49,7 @@ pub struct TaskManagerInner {
     /// id of current `Running` task
     current_task: usize,
 }
-
+//许你创建一个全局的懒加载（lazy）的静态变量
 lazy_static! {
     /// Global variable: TASK_MANAGER
     pub static ref TASK_MANAGER: TaskManager = {
@@ -54,6 +57,8 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            syscall_count: [0;MAX_SYSCALL_NUM],
+            start_time: get_time_ms(),
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -135,6 +140,44 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    fn add_syscall_count(&self,sys_call_id : usize)
+    {
+        if sys_call_id >= MAX_SYSCALL_NUM {
+            return;
+        }
+        let mut inner = self.inner.exclusive_access(); 
+        let current = inner.current_task;
+        inner.tasks[current].syscall_count[sys_call_id]+=1; //
+    }
+
+     ///获取当前running任务的信息
+     /// 返回：
+    ///impl TaskInfo {
+    ///    pub fn new() -> Self {
+    ///        TaskInfo {
+    ///            status: TaskStatus::UnInit,
+    ///            syscall_times: [0; MAX_SYSCALL_NUM],
+    ///           time: 0,
+    ///        }
+    ///    }
+     ///}
+    pub fn get_current_task_info(&self) -> TaskInfo{
+        let inner = self.inner.exclusive_access();
+        let current_task_id = inner.current_task; 
+
+        // task list tasks: [TaskControlBlock; MAX_APP_NUM],
+        // 这个是数组结构，用下标作为task_idd
+        let current_task = &inner.tasks[current_task_id];
+         
+        let task_info = TaskInfo {
+            status: current_task.task_status.clone(),
+            syscall_times:current_task.syscall_count.clone(),
+            //运行时间 = 当前时间 - 任务开始时间
+            time: get_time_ms() - current_task.start_time,
+        };
+        task_info
+    }
 }
 
 /// Run the first task in task list.
@@ -168,4 +211,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// 封装获增加调用次数
+pub fn add_syscall_count(sys_call_id: usize) {
+    TASK_MANAGER.add_syscall_count(sys_call_id);
+}
+
+/// 封装获取当前任务信息的函数
+pub fn get_task_info() -> TaskInfo{
+    TASK_MANAGER.get_current_task_info()
 }
