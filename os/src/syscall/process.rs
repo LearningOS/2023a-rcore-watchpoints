@@ -1,19 +1,21 @@
 //! Process management syscalls
 use crate::{
-    config::MAX_SYSCALL_NUM,
+    config::{MAX_SYSCALL_NUM,PAGE_SIZE},
     task::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, current_user_token,
     },
     timer::{get_time_us},
-    mm::{get_physical,VirtAddr},
+    mm::{get_physical},
     task::{get_task_info},
 };
 
-use crate::task::kernel_mmap;
-use crate::task::kernel_unmmap;
-use crate::task::check_all_allocated;
-
-const MAX_ALLOC_MEMORY: usize = 1024 * 1024 * 1024;
+// use crate::task::kernel_mmap;
+// use crate::task::kernel_unmmap;
+// use crate::task::check_all_allocated;
+// use crate::task::check_allocated;
+// use crate::mm::VirtAddr;
+use crate::task::current_task_map;
+use crate::task::current_task_unmap;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -107,27 +109,31 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
     
     // check port
-    if _port & !0x7 != 0 || _port & 0x7 == 0 {
-        return -1;
-    }
-    // check len
-    if _len > MAX_ALLOC_MEMORY {
+    if _port & !0x7 != 0 || _port & 0x7 == 0 || _start % PAGE_SIZE != 0{
         return -1;
     }
 
-    let begin_virtual_addr: VirtAddr = _start.into(); // usize to VirtAddr
-    //Rust Tips：类型转换之 From 和 Into
-    //https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter4/3sv39-implementation-1.html
-    //地址相关的数据结构抽象与类型定义
+    // let begin_virtual_addr: VirtAddr = VirtAddr::from(_start); 
+    // //Rust Tips：类型转换之 From 和 Into
+    // //https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter4/3sv39-implementation-1.html
+    // //地址相关的数据结构抽象与类型定义
 
-    if !begin_virtual_addr.aligned() {
-        return -1; //提前返回
+    // if begin_virtual_addr.page_offset() != 0 {
+    //     return -1; //提前返回
+    // }
+    
+    // let end_virtual_addr:VirtAddr = (_start + _len).into();//
+    // // check if allocated
+    // if check_allocated(begin_virtual_addr, end_virtual_addr) {
+    //     return -1;
+    // }
+
+    // kernel_mmap(begin_virtual_addr, end_virtual_addr, _port);
+    if _start % PAGE_SIZE != 0 {
+        -1
+    } else {
+        current_task_map(_start, _len, _port)
     }
-
-
-    let end_virtual_addr:VirtAddr = (_start + _len).into();//
-
-    kernel_mmap(begin_virtual_addr, end_virtual_addr, _port)
 
 }
 
@@ -135,18 +141,29 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     // trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
     // -1
+    
     trace!("kernel: sys_munmap");
-    let virt_addr_start: VirtAddr = _start.into();
-    let virt_addr_end: VirtAddr = (_start + _len).into();
-    if !virt_addr_start.aligned() {
-        return -1;
+
+    // if _start % PAGE_SIZE != 0 {
+    //     return -1;
+    // } 
+
+    // let virt_addr_start: VirtAddr = _start.into();
+    // let virt_addr_end: VirtAddr = (_start + _len).into();
+    // if !virt_addr_start.aligned() {
+    //     return -1;
+    // }
+    //  // check
+    //  if !check_all_allocated(virt_addr_start, virt_addr_end) {
+    //     return -1;
+    // }
+    // kernel_unmmap(virt_addr_start, virt_addr_end);
+    // 0
+    if _start % PAGE_SIZE != 0 {
+        -1
+    } else {
+        current_task_unmap(_start, _len)
     }
-     // check
-     if !check_all_allocated(virt_addr_start, virt_addr_end) {
-        return -1;
-    }
-    kernel_unmmap(virt_addr_start, virt_addr_end);
-    0
     
 }
 /// change data segment size
