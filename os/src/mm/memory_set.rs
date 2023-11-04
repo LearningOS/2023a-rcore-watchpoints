@@ -300,6 +300,52 @@ impl MemorySet {
             false
         }
     }
+
+    /// set the map between virtual page number and physical page number
+    /// 会一个虚拟地址变成物理地址，不会多个吗？
+    pub fn range_map_to_physical(&mut self, start: usize, len: usize, prot: usize) -> isize {
+        let start_vpn = VirtAddr::from(start).floor().0;  //虚拟地址 开始位置
+        let end_vpn = VirtAddr::from(start + len - 1).floor().0; //虚拟地址 结束位置
+    
+        let flags = PTEFlags::from_bits((prot << 1) as u8).unwrap() | PTEFlags::U; //参考：fn flags(&self)
+
+        for cur_vpn in start_vpn..=end_vpn {
+            // Translate a virtual page number to a page table entry
+            if let Some(pte) = self.translate(VirtPageNum::from(cur_vpn)) {
+                if pte.is_valid() {
+                    return -1;
+                }
+            }
+            // set the map between virtual page number and physical page number 
+            // virtual page number 如何当作数组索引的的 这个没看懂 ？？？
+            self.page_table.map(
+                VirtPageNum::from(cur_vpn),
+                frame_alloc().unwrap().ppn,
+                flags,
+            );
+        }
+        0
+    }
+
+    /// remove the map between virtual page number and physical page number
+    pub fn unmap_range(&mut self, start: usize, len: usize) -> isize {
+        let st_vpn = VirtAddr::from(start).floor().0;
+        let ed_vpn = VirtAddr::from(start + len - 1).floor().0;
+
+        for cur_vpn in st_vpn..=ed_vpn {
+            // Translate a virtual page number to a page table entry
+            if let Some(pte) = self.translate(VirtPageNum::from(cur_vpn)) {
+                if pte.is_valid() {
+                    self.page_table.unmap(VirtPageNum::from(cur_vpn));
+                } else {
+                    return -1;
+                }
+            } else {
+                return -1;
+            }
+        }
+        0
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

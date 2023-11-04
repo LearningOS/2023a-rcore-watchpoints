@@ -8,7 +8,7 @@ use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
-
+use crate::config::MAX_SYSCALL_NUM;
 /// Task control block structure
 ///
 /// Directly save the contents that will not change during running
@@ -68,6 +68,16 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    ///记录system调用task的次数 
+    pub syscall_count: [u32;MAX_SYSCALL_NUM], 
+    ///记录task 启动的时间 
+    pub start_time: usize,
+
+    /// 任务调度：表示该进程当前已经运行的长度
+    pub stride: usize,
+    /// 任务的优先级
+    pub priority: usize,
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +128,11 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    // 新增成员 什么情况add
+                    syscall_count:[0 as u32; MAX_SYSCALL_NUM],
+                    start_time:0 as usize,
+                    stride:0 as usize,
+                    priority:16 as usize, //进程初始优先级设置为 16
                 })
             },
         };
@@ -191,6 +206,11 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    // 新增成员     // fork 父子进程内容一样
+                    syscall_count:parent_inner.syscall_count.clone(),
+                    start_time:parent_inner.start_time,
+                    stride: parent_inner.stride,
+                    priority: parent_inner.priority,
                 })
             },
         });

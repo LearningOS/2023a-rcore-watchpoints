@@ -41,12 +41,16 @@ const SYSCALL_SPAWN: usize = 400;
 const SYSCALL_TASK_INFO: usize = 410;
 
 mod fs;
-mod process;
+// mod syscall; 错误 必须是syscall.rs文件才可以
+pub mod process;
 
 use fs::*;
 use process::*;
+pub use process::TaskInfo;
+use crate::task::add_syscall_count;
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    add_syscall_count(syscall_id);
     match syscall_id {
         SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),

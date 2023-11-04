@@ -13,9 +13,11 @@ use alloc::sync::Arc;
 use lazy_static::*;
 
 /// Processor management structure
+/// 处理器管理结构 Processor 负责从任务管理器 TaskManager 中分出去的维护 CPU 状态的职责： 可能变化的内容
 pub struct Processor {
     ///The task currently executing on the current processor
-    current: Option<Arc<TaskControlBlock>>,
+    /// 表示在当前处理器上正在执行的任务；
+    current: Option<Arc<TaskControlBlock>>, 
 
     ///The basic control flow of each core, helping to select and switch process
     idle_task_cx: TaskContext,
@@ -38,15 +40,20 @@ impl Processor {
     ///Get current task in moving semanteme
     pub fn take_current(&mut self) -> Option<Arc<TaskControlBlock>> {
         self.current.take()
+        // https://doc.rust-lang.org/std/option/enum.Option.html
+
     }
 
     ///Get current task in cloning semanteme
     pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
         self.current.as_ref().map(Arc::clone)
+        // 既然是共享引用，怎么又clone了，能修改里面成员吗？
+        //https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref
     }
 }
-
+ 
 lazy_static! {
+    // 单核 只有一个 进程管理
     pub static ref PROCESSOR: UPSafeCell<Processor> = unsafe { UPSafeCell::new(Processor::new()) };
 }
 
@@ -77,6 +84,7 @@ pub fn run_tasks() {
 }
 
 /// Get current task through take, leaving a None in its place
+/// 每个cpu存储正在调度 TaskControlBlock 这里统计每个任务执行状态，
 pub fn take_current_task() -> Option<Arc<TaskControlBlock>> {
     PROCESSOR.exclusive_access().take_current()
 }
@@ -109,3 +117,4 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
         __switch(switched_task_cx_ptr, idle_task_cx_ptr);
     }
 }
+

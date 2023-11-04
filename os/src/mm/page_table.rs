@@ -213,3 +213,32 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
+
+
+/// Translate a Virtual Address to Physical Address
+pub fn get_physical(token: usize, ptr: usize) -> usize  {
+    
+    // 虚拟内存地址 的 偏移量
+    let virtual_address = VirtAddr::from(ptr);
+    let offset = virtual_address.page_offset();
+
+    //虚拟内存地址 的  页号
+    let vpn  = virtual_address.floor();
+
+    // 从页表里面，查询出虚拟页号，对应的物理页号；
+    let _page_table  = PageTable::from_token(token);
+    let ppn = _page_table.translate(vpn).unwrap().ppn();
+
+    let physical_address = ppn.0 << 12 | offset;
+    physical_address
+
+    //最后将得到的44位的物理页号与虚拟地址的12位页内偏移依序拼接到一起就变成了56位的物理地址。
+
+}
+
+// 计算机组成原理：简单页表和多级页表（虚拟内存的映射）
+// 总结一下，对于一个内存地址转换，其实就是这样三个步骤：
+
+// 把虚拟内存地址，切分成页号和偏移量的组合；
+// 从页表里面，查询出虚拟页号，对应的物理页号；
+// 直接拿物理页号，加上前面的偏移量，就得到了物理内存地址
